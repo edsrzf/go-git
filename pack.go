@@ -35,10 +35,12 @@ func (p *pack) readIndex() {
 	var err os.Error
 	p.indexFile, err = os.Open(p.idxPath, os.O_RDONLY, 0)
 	if err != nil {
+		println("error opening")
 		return
 	}
 	p.index, err = mmap.Map(p.indexFile, mmap.RDONLY)
 	if err != nil {
+		println("error mapping")
 		return
 	}
 	if string([]byte(p.index[:8])) != indexHeader {
@@ -129,7 +131,7 @@ func (p *pack) getObject(id *Id) []byte {
 	r.Read(obj)
 	r.Close()
 
-	fmt.Printf("data: %s\n", obj)
+	fmt.Printf("data: %q\n", obj)
 
 	return obj
 }

@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 )
 
 type Repo struct {
@@ -76,17 +77,37 @@ func (r *Repo) GetObject(id *Id) Object {
 }
 
 func parse(raw []byte) Object {
-	fmt.Println(string(raw))
-	return nil
 	i := bytes.IndexByte(raw, ' ')
-	//null := bytes.IndexByte(raw[i:], '\x00')
-	switch string(raw[0:i]) {
+	null := bytes.IndexByte(raw, '\x00')
+	sizeStr := raw[i+1:null]
+	size, err := strconv.Atoi(string(sizeStr))
+	if err != nil {
+		panic("whaa?")
+	}
+	switch string(raw[:i]) {
 		case "blob":
 		case "tree":
 		case "commit":
+			return parseCommit(raw[null+1:null+1+size])
 		default:
 			panic("What the heck?")
 	}
+	return nil
+}
+
+func parseCommit(raw []byte) *Commit {
+	fmt.Printf("%q\n", raw)
+	pos := bytes.Index(raw, []byte("\n\n"))
+	if pos < 0 {
+		panic("no message?")
+	}
+	//lines := bytes.Split(raw[:pos], "\n", -1)
+	// lines[0] is tree
+	// lines[1-n] is parent
+	// lines[n+1] is author
+	// lines[n+2] is committer
+	//msg := string(raw[pos+2:])
+	//return NewCommit(msg)
 	return nil
 }
 

@@ -122,9 +122,9 @@ type Commit struct {
 	message string
 }
 
-func NewCommit(authorName, authorEmail string, authorTime *time, committerName, committerEmail string, committerTime *time, tree *Id, parents []*Id, message string) *Commit {
+func NewCommit(authorName, authorEmail string, authorTime *time, committerName, committerEmail string, commitTime *time, tree *Id, parents []*Id, msg string) *Commit {
 	// TODO: Set unset things
-	return &Commit{authorName, authorEmail, authorTime, committerName, committerEmail, committerTime, tree, parents, message}
+	return &Commit{authorName, authorEmail, authorTime, committerName, committerEmail, commitTime, tree, parents, msg}
 }
 
 func NewCommitSimple(name, email string, time *time, tree *Id, parent *Id) *Commit {
