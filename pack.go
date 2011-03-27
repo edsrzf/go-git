@@ -22,7 +22,7 @@ type pack struct {
 }
 
 func newPack(r *Repo, base string) *pack {
-	basePath := r.path + base
+	basePath := r.path + "/objects/pack/" + base
 	return &pack{idxPath: basePath + ".idx", dataPath: basePath + ".pack"}
 }
 
@@ -35,12 +35,12 @@ func (p *pack) readIndex() {
 	var err os.Error
 	p.indexFile, err = os.Open(p.idxPath, os.O_RDONLY, 0)
 	if err != nil {
-		println("error opening")
+		panic(err.String())
 		return
 	}
 	p.index, err = mmap.Map(p.indexFile, mmap.RDONLY)
 	if err != nil {
-		println("error mapping")
+		panic("error mapping")
 		return
 	}
 	if string([]byte(p.index[:8])) != indexHeader {
@@ -68,62 +68,117 @@ func (p *pack) readData() {
 	}
 }
 
-func (p *pack) getObject(id *Id) []byte {
+const (
+	_OBJ_COMMIT = iota + 1
+	_OBJ_TREE
+	_OBJ_BLOB
+	_OBJ_TAG
+	_
+	_OBJ_OFS_DELTA
+	_OBJ_REF_DELTA
+)
+
+func (p *pack) getObject(id Id) Object {
+	idBytes := []byte(string(id))
 	p.readIndex()
 	// 255 uint32s
 	fan := p.index[8:1032]
-	size := order.Uint32(fan[1028:])
+	size := order.Uint32(fan[1020:])
 	// TODO: Make sure fan[id[0]] > fan[id[0] - 1]
 	//       Otherwise our object's definitely not here
 	cnt := order.Uint32(fan[4*id[0]:])
 	// TODO: split up this line so it's easier to read
 	loc := 8 + 1024 + cnt*20
 	suspect := p.index[loc:loc+20]
-	cmp := bytes.Compare(id[:], suspect)
-	lo, hi := uint32(0), size
+	cmp := bytes.Compare(idBytes, suspect)
 	// TODO: allow for failure
-	for ; cmp != 0; cmp = bytes.Compare(id[:], suspect) {
+	for lo, hi := uint32(0), size; cmp != 0; cmp = bytes.Compare(idBytes, suspect) {
 		if cmp < 0 {
 			hi = cnt
 		} else {
-			lo = cnt
+			lo = cnt + 1
+		}
+		if lo >= hi {
+			return nil
 		}
 		cnt = (lo + hi) / 2
-		loc := 8 + 1024 + cnt*20
+		loc = 8 + 1024 + cnt*20
 		suspect = p.index[loc:loc+20]
 	}
 
 	// TODO: check for 64-bit offset
-	offset := order.Uint32(p.index[loc + 24*size - 20*cnt:])
-	p.readData()
-	objHeader := p.data[offset]
-	objType := objHeader & 0x70 >> 4
+	// calculate which sha1 we looked at
+	n := (loc - 1032) / 20
+	offsetBase := 1032 + 20*size + 4*size
+	offset := order.Uint32(p.index[offsetBase + 4*n:])
+	return p.readObject(offset)
+}
+
+func (p *pack) readObject(offset uint32) Object {
+	objType, obj := p.readRaw(offset)
 
 	switch objType {
-	case 0x01:
+	case _OBJ_COMMIT:
 		println("It's a commit")
-	case 0x02:
+		return parseCommit(obj)
+	case _OBJ_TREE:
 		println("It's a tree")
-	case 0x03:
-		println("It's a blog")
-	case 0x04:
+		return parseTree(obj)
+	case _OBJ_BLOB:
+		println("It's a blob")
+		return &Blob{obj}
+	case _OBJ_TAG:
 		println("It's a tag")
 	default:
 		println("It's something else")
+		panic("we don't know about this type yet")
 	}
+
+	return nil
+}
+
+func (p *pack) readRaw(offset uint32) (int, []byte) {
+	p.readData()
+	objHeader := p.data[offset]
+	objType := int(objHeader & 0x71 >> 4)
 
 	// size when uncompressed
 	// TODO: should be uint64?
 	objSize := uint32(objHeader & 0x0F)
 	i := uint32(0)
+	shift := uint32(4)
 	for objHeader & 0x80 != 0 {
-		objHeader = p.data[offset+i]
-		objSize |= uint32(objHeader & 0x7F) << 7*(i+1)
 		i++
+		objHeader = p.data[offset+i]
+		objSize |= uint32(objHeader & 0x7F) << shift
+		shift += 7
+	}
+
+	var rawBase []byte
+	if objType == _OBJ_OFS_DELTA {
+		println("ofs")
+		i++
+		b := p.data[offset+i]
+		baseOffset := uint32(b & 0x7F)
+		for b & 0x80 != 0 {
+			i++
+			b = p.data[offset+i]
+			baseOffset = ((baseOffset + 1) << 7) | uint32(b & 0x7F)
+		}
+		if baseOffset > uint32(len(p.data)) || baseOffset > offset {
+			panic("bad offset")
+		}
+		objType, rawBase = p.readRaw(offset - baseOffset)
+	} else if objType == _OBJ_REF_DELTA {
+		fmt.Println("ref")
+		/*baseId := Id(string([]byte(p.data[offset+i+1:offset+i+21])))
+		fmt.Printf("baseId %s\n", baseId)
+		base = p.getObject(baseId)
+		i += 20*/
 	}
 
 	obj := make([]byte, objSize)
-	buf := bytes.NewBuffer(p.data[offset+i:])
+	buf := bytes.NewBuffer(p.data[offset+i+1:])
 	r, err := zlib.NewReader(buf)
 	if err != nil {
 		panic(err.String())
@@ -131,9 +186,89 @@ func (p *pack) getObject(id *Id) []byte {
 	r.Read(obj)
 	r.Close()
 
-	fmt.Printf("data: %q\n", obj)
+	if rawBase != nil {
+		// apply delta to base
+		obj = applyDelta(rawBase, obj)
+	}
 
-	return obj
+	return objType, obj
+}
+
+func applyDelta(base, patch []byte) []byte {
+	// base length; TODO: use for bounds checking
+	baseLength, n := decodeVarint(patch)
+	if baseLength != uint64(len(base)) {
+		println(baseLength, len(base))
+		panic("base mismatch")
+		return nil
+	}
+	fmt.Printf("%q\n", patch)
+	patch = patch[n:]
+	resultLength, n := decodeVarint(patch)
+	patch = patch[n:]
+	result := make([]byte, resultLength)
+	loc := uint(0)
+	for len(patch) > 0 {
+		i := uint(1)
+		op := patch[0]
+		if op == 0 {
+			// reserved
+			// TODO: better error, don't panic
+			panic("delta opcode 0")
+		} else if op & 0x80 == 0 {
+			// insert
+			println("insert op")
+			n := uint(op)
+			copy(result[loc:], patch[i:i+n])
+			loc += n
+			i += n
+			patch = patch[i+n:]
+			continue
+		}
+		println("copy op")
+		copyOffset := uint(0)
+		for j := uint(0); j < 4; j++ {
+			if op & (1 << j) != 0 {
+				println(len(patch), i)
+				x := patch[i]
+				i++
+				copyOffset |= uint(x) << (j*8)
+			}
+		}
+		copyLength := uint(0)
+		for j := uint(0); j < 3; j++ {
+			if op & (1 << (4+j)) != 0 {
+				x := patch[i]
+				i++
+				copyLength |= uint(x) << (j*8)
+			}
+		}
+		if copyLength == 0 {
+			copyLength = 1 << 16
+		}
+		println(len(result), loc, len(base), copyOffset, copyLength)
+		if copyOffset + copyLength > uint(len(base)) || copyLength > uint(len(result[loc:])) {
+			panic("oops, that's not good")
+		}
+		copy(result[loc:], base[copyOffset:copyOffset+copyLength])
+		loc += copyLength
+		patch = patch[i:]
+	}
+	return nil
+}
+
+func decodeVarint(buf []byte) (x uint64, n int) {
+	shift := uint64(0)
+	for {
+		b := buf[n]
+		n++
+		x |= uint64(b & 0x7F) << shift
+		shift += 7
+		if b & 0x80 == 0 {
+			return
+		}
+	}
+	return
 }
 
 func (p *pack) Close() {

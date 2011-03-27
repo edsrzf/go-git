@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/hex"
-	"fmt"
+	//"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -27,7 +27,7 @@ func IsRepo(dir string) bool {
 		return false
 	}
 	// We'll just assume that anything starting with "ref: " is good enough
-	if string(head[0:5]) != "ref: " {
+	if string(head[:5]) != "ref: " {
 		for _, c := range head {
 			if c < '0' || c > 'f' || (c > '9' && c < 'a') {
 				// Not a valid SHA-1
@@ -68,12 +68,12 @@ func NewRepo(path string) *Repo {
 	return &Repo{path: path}
 }
 
-func (r *Repo) GetObject(id *Id) Object {
-	raw := r.getLooseObject(id)
-	if raw == nil {
-		raw = r.getPackedObject(id)
+func (r *Repo) GetObject(id Id) Object {
+	obj := r.getLooseObject(id)
+	if obj == nil {
+		obj = r.getPackedObject(id)
 	}
-	return parse(raw)
+	return obj
 }
 
 func parse(raw []byte) Object {
@@ -86,7 +86,9 @@ func parse(raw []byte) Object {
 	}
 	switch string(raw[:i]) {
 		case "blob":
+			return &Blob{raw[null+1:null+1+size]}
 		case "tree":
+			return parseTree(raw[null+1:null+1+size])
 		case "commit":
 			return parseCommit(raw[null+1:null+1+size])
 		default:
@@ -95,23 +97,55 @@ func parse(raw []byte) Object {
 	return nil
 }
 
-func parseCommit(raw []byte) *Commit {
-	fmt.Printf("%q\n", raw)
-	pos := bytes.Index(raw, []byte("\n\n"))
-	if pos < 0 {
-		panic("no message?")
+func parseTree(raw []byte) *Tree {
+	t := NewTree(0)
+	for len(raw) > 0 {
+		pos := bytes.IndexByte(raw, 0)
+		name := string(raw[7:pos])
+		id := Id(string(raw[pos + 1:pos+21]))
+		raw = raw[pos+21:]
+		t.Add(name, id)
 	}
-	//lines := bytes.Split(raw[:pos], "\n", -1)
-	// lines[0] is tree
-	// lines[1-n] is parent
-	// lines[n+1] is author
-	// lines[n+2] is committer
-	//msg := string(raw[pos+2:])
-	//return NewCommit(msg)
-	return nil
+	return t
 }
 
-func (r *Repo) getLooseObject(id *Id) []byte {
+func parseCommit(raw []byte) *Commit {
+	msgPos := bytes.Index(raw, []byte("\n\n"))
+	if msgPos < 0 {
+		panic("no message?")
+	}
+	lines := bytes.Split(raw[:msgPos], []byte{'\n'}, -1)
+	c := &Commit{}
+	for _, line := range lines {
+		pos := bytes.IndexByte(line, ' ')
+		if pos < 0 {
+			panic("bad commit format")
+		}
+		switch string(line[:pos]) {
+		case "tree":
+			c.tree = IdFromBytes(line[pos+1:])
+		case "parent":
+			parentId := IdFromBytes(line[pos+1:])
+			c.parents = append(c.parents, parentId)
+		case "author":
+			c.authorName, c.authorEmail = parseIdentity(line[pos+1:])
+		case "committer":
+			c.committerName, c.committerEmail = parseIdentity(line[pos+1:])
+		}
+	}
+	c.msg = string(raw[msgPos+2:])
+	return c
+}
+
+func parseIdentity(line []byte) (string, string) {
+	pos := bytes.IndexByte(line, '<')
+	name := string(line[:pos-1])
+	addrEnd := bytes.IndexByte(line, '>')
+	addr := string(line[pos+1:addrEnd])
+	return name, addr
+}
+
+func (r *Repo) getLooseObject(id Id) Object {
 	sha1 := id.String()
 	path := r.path + "/objects/" + sha1[0:2] + "/" + sha1[2:]
 	f, err := os.Open(path, os.O_RDONLY, 0)
@@ -124,7 +158,7 @@ func (r *Repo) getLooseObject(id *Id) []byte {
 	// TODO: Size it right
 	b := make([]byte, 1024)
 	z.Read(b)
-	return b
+	return parse(b)
 }
 
 // parse and cache index info
@@ -136,66 +170,59 @@ func (r *Repo) findPacks() {
 	packDir := r.path + "/objects/pack/"
 	dir, err := os.Open(packDir, os.O_RDONLY, 0)
 	if err != nil {
+		panic(err.String())
 		return
 	}
 	defer dir.Close()
 	files, err := dir.Readdirnames(-1)
 	if err != nil {
+		panic(err.String())
 		return
 	}
 	for _, f := range files {
 		ext := path.Ext(f)
-		if ext == "idx" {
-			base := path.Base(f)
+		if ext == ".idx" {
+			base := f[:len(f)-len(ext)]
 			r.packs = append(r.packs, newPack(r, base))
 		}
 	}
 }
 
-func (r *Repo) getPackedObject(id *Id) []byte {
+func (r *Repo) getPackedObject(id Id) Object {
 	r.findPacks()
 	for _, p := range r.packs {
-		if raw := p.getObject(id); raw != nil {
-			return raw
+		if obj := p.getObject(id); obj != nil {
+			return obj
 		}
 	}
 	return nil
 }
 
-type Id [20]byte
+// binary representation of an id
+// len == 20, always (except for invalid ids)
+// it's a string so it can be used as a map key
+type Id string
 
-func IdFromBytes(sha1 []byte) *Id {
-	if len(sha1) != 20 {
-		return nil
+func IdFromBytes(sha1 []byte) Id {
+	if len(sha1) != 40 {
+		return ""
 	}
-	id := new(Id)
-	copy(id[0:], sha1)
-	return id
+	decoded := make([]byte, 20)
+	hex.Decode(decoded, sha1)
+	return Id(string(decoded))
 }
 
-func IdFromString(sha1 string) *Id {
+func IdFromString(sha1 string) Id {
 	if len(sha1) != 40 {
-		return nil
+		return ""
 	}
-	id := new(Id)
 	decoded, err := hex.DecodeString(sha1)
 	if err != nil {
-		return nil
+		return ""
 	}
-	copy(id[0:], decoded)
-	return id
+	return Id(string(decoded))
 }
 
-func (id *Id) String() string {
-	return hex.EncodeToString(id[:])
-}
-
-func (x *Id) Same(y *Id) bool {
-	a, b := *x, *y
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
+func (id Id) String() string {
+	return hex.EncodeToString([]byte(string(id)))
 }
