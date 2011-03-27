@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/hex"
-	//"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -145,9 +144,13 @@ func parseIdentity(line []byte) (string, string) {
 	return name, addr
 }
 
-func (r *Repo) getLooseObject(id Id) Object {
+func (r *Repo) loosePath(id Id) string {
 	sha1 := id.String()
-	path := r.path + "/objects/" + sha1[0:2] + "/" + sha1[2:]
+	return r.path + "/objects/" + sha1[0:2] + "/" + sha1[2:]
+}
+
+func (r *Repo) getLooseObject(id Id) Object {
+	path := r.loosePath(id)
 	f, err := os.Open(path, os.O_RDONLY, 0)
 	defer f.Close()
 	if err != nil {
@@ -195,6 +198,25 @@ func (r *Repo) getPackedObject(id Id) Object {
 			return obj
 		}
 	}
+	return nil
+}
+
+// Save adds an Object to the repository.
+func (r *Repo) Save(obj Object) os.Error {
+	// It's easy to create a loose object. Let's do that.
+	path := r.loosePath(ObjectId(obj))
+	f, err := os.Open(path, os.O_CREATE | os.O_RDWR, 0666)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	content := obj.Raw()
+	wr, err := zlib.NewWriter(f)
+	if err != nil {
+		return err
+	}
+	defer wr.Close()
+	wr.Write(content)
 	return nil
 }
 

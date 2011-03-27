@@ -7,18 +7,26 @@ import (
 )
 
 type Object interface {
+	Header() string
 	Raw() []byte
-	Id() Id
 }
 
-// Returns an object ID given an object header an the object's content.
-func idHelper(header string, content []byte) Id {
+func ObjectId(obj Object) Id {
 	h := sha1.New()
-	h.Write([]byte(header + " "))
-	h.Write([]byte(strconv.Itoa(len(content))))
-	h.Write([]byte{0})
-	h.Write(content)
+	h.Write(ObjectFull(obj))
 	return IdFromBytes(h.Sum())
+}
+
+func ObjectFull(obj Object) []byte {
+	content := obj.Raw()
+	full := [][]byte{
+		[]byte(obj.Header()),
+		{' '},
+		[]byte(strconv.Itoa(len(content))),
+		{0},
+		content,
+	}
+	return bytes.Join(full, nil)
 }
 
 type Blob struct {
@@ -29,7 +37,7 @@ func NewBlob(raw []byte) *Blob {
 	return &Blob{raw}
 }
 
-func (b *Blob) Id() Id { return idHelper("blob", b.Raw()) }
+func (b *Blob) Header() string { return "blob" }
 
 func (b *Blob) Raw() []byte {
 	return b.raw
@@ -54,7 +62,7 @@ func (t *Tree) Add(name string, child Id) {
 	t.children = append(t.children, child)
 }
 
-func (t *Tree) Id() Id { return idHelper("tree", t.Raw()) }
+func (t *Tree) Header() string { return "tree" }
 
 func (t *Tree) Raw() []byte {
 	content := bytes.NewBuffer(nil)
@@ -112,7 +120,7 @@ func NewCommitSimple(name, email string, time *time, tree Id, parent Id) *Commit
 	return &Commit{name, email, time, name, email, time, tree, []Id{parent}, "empty message"}
 }
 
-func (c *Commit) Id() Id { return idHelper("commit", c.Raw()) }
+func (c *Commit) Header() string { return "commit" }
 
 func (c *Commit) Raw() []byte {
 	content := "tree " + c.tree.String()
