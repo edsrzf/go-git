@@ -4,7 +4,7 @@
 
 include $(GOROOT)/src/Make.inc
 
-TARG=github.com/edsrzf/gogit
+TARG=github.com/edsrzf/go-git
 GOFILES=\
 	git.go\
 	object.go\
