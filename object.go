@@ -6,16 +6,7 @@ import (
 	"strconv"
 )
 
-type Type int
-const (
-	BlobType Type = iota
-	TreeType
-	CommitType
-	TagType
-)
-
 type Object interface {
-	Type() Type
 	Raw() []byte
 	Id() Id
 }
@@ -38,8 +29,6 @@ func NewBlob(raw []byte) *Blob {
 	return &Blob{raw}
 }
 
-func (b *Blob) Type() Type { return BlobType }
-
 func (b *Blob) Id() Id { return idHelper("blob", b.Raw()) }
 
 func (b *Blob) Raw() []byte {
@@ -59,8 +48,6 @@ func NewTree(cap int) *Tree {
 	}
 	return t
 }
-
-func (c *Tree) Type() Type { return TreeType }
 
 func (t *Tree) Add(name string, child Id) {
 	t.names = append(t.names, name)
@@ -124,8 +111,6 @@ func NewCommit(authorName, authorEmail string, authorTime *time, committerName, 
 func NewCommitSimple(name, email string, time *time, tree Id, parent Id) *Commit {
 	return &Commit{name, email, time, name, email, time, tree, []Id{parent}, "empty message"}
 }
-
-func (c *Commit) Type() Type { return CommitType }
 
 func (c *Commit) Id() Id { return idHelper("commit", c.Raw()) }
 
