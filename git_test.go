@@ -25,7 +25,8 @@ func TestVarint(t *testing.T) {
 	}
 }
 
-func TestEverything(t *testing.T) {
+// It's probably a bad idea to write tests this way, but it's just so convenient.
+func TestObjects(t *testing.T) {
 	r := NewRepo(".git")
 	if r == nil {
 		t.Fatal("cannot find repo")

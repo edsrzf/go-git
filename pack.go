@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
-	"fmt"
 	"os"
 	"github.com/edsrzf/go-mmap"
 )
@@ -79,6 +78,11 @@ const (
 )
 
 func (p *pack) getObject(id Id) Object {
+	offset := p.offset(id)
+	return p.readObject(offset)
+}
+
+func (p *pack) offset(id Id) uint32 {
 	idBytes := []byte(string(id))
 	p.readIndex()
 	// 255 uint32s
@@ -99,7 +103,7 @@ func (p *pack) getObject(id Id) Object {
 			lo = cnt + 1
 		}
 		if lo >= hi {
-			return nil
+			return 0
 		}
 		cnt = (lo + hi) / 2
 		loc = 8 + 1024 + cnt*20
@@ -111,7 +115,7 @@ func (p *pack) getObject(id Id) Object {
 	n := (loc - 1032) / 20
 	offsetBase := 1032 + 20*size + 4*size
 	offset := order.Uint32(p.index[offsetBase + 4*n:])
-	return p.readObject(offset)
+	return offset
 }
 
 func (p *pack) readObject(offset uint32) Object {
@@ -156,7 +160,6 @@ func (p *pack) readRaw(offset uint32) (int, []byte) {
 
 	var rawBase []byte
 	if objType == _OBJ_OFS_DELTA {
-		println("ofs")
 		i++
 		b := p.data[offset+i]
 		baseOffset := uint32(b & 0x7F)
@@ -170,11 +173,10 @@ func (p *pack) readRaw(offset uint32) (int, []byte) {
 		}
 		objType, rawBase = p.readRaw(offset - baseOffset)
 	} else if objType == _OBJ_REF_DELTA {
-		fmt.Println("ref")
-		/*baseId := Id(string([]byte(p.data[offset+i+1:offset+i+21])))
-		fmt.Printf("baseId %s\n", baseId)
-		base = p.getObject(baseId)
-		i += 20*/
+		baseId := Id(string([]byte(p.data[offset+i+1:offset+i+21])))
+		i += 20
+		baseOffset := p.offset(baseId)
+		objType, rawBase = p.readRaw(baseOffset)
 	}
 
 	obj := make([]byte, objSize)
@@ -198,11 +200,10 @@ func applyDelta(base, patch []byte) []byte {
 	// base length; TODO: use for bounds checking
 	baseLength, n := decodeVarint(patch)
 	if baseLength != uint64(len(base)) {
-		println(baseLength, len(base))
+		// TODO: return error
 		panic("base mismatch")
 		return nil
 	}
-	fmt.Printf("%q\n", patch)
 	patch = patch[n:]
 	resultLength, n := decodeVarint(patch)
 	patch = patch[n:]
@@ -217,19 +218,15 @@ func applyDelta(base, patch []byte) []byte {
 			panic("delta opcode 0")
 		} else if op & 0x80 == 0 {
 			// insert
-			println("insert op")
 			n := uint(op)
 			copy(result[loc:], patch[i:i+n])
 			loc += n
-			i += n
 			patch = patch[i+n:]
 			continue
 		}
-		println("copy op")
 		copyOffset := uint(0)
 		for j := uint(0); j < 4; j++ {
 			if op & (1 << j) != 0 {
-				println(len(patch), i)
 				x := patch[i]
 				i++
 				copyOffset |= uint(x) << (j*8)
@@ -246,7 +243,6 @@ func applyDelta(base, patch []byte) []byte {
 		if copyLength == 0 {
 			copyLength = 1 << 16
 		}
-		println(len(result), loc, len(base), copyOffset, copyLength)
 		if copyOffset + copyLength > uint(len(base)) || copyLength > uint(len(result[loc:])) {
 			panic("oops, that's not good")
 		}
@@ -254,7 +250,7 @@ func applyDelta(base, patch []byte) []byte {
 		loc += copyLength
 		patch = patch[i:]
 	}
-	return nil
+	return result
 }
 
 func decodeVarint(buf []byte) (x uint64, n int) {
