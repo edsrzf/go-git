@@ -4,6 +4,8 @@ package git
 // Git protocol.
 import (
 	"http"
+	"io"
+	"os"
 	"regexp"
 	"strings"
 )
@@ -25,7 +27,7 @@ var routes = []struct {
 	{regexp.MustCompile("/git-upload-pack$"), uploadPack},
 	{regexp.MustCompile("/git-receive-pack$"), receivePack},
 	// GET-only
-	{regexp.MustCompile("/info/refs$"), serveRefs},
+	{regexp.MustCompile("/info/refs(\\?.*)?$"), serveRefs},
 	{regexp.MustCompile("/HEAD$"), serveText},
 	{regexp.MustCompile("/objects/info/alternates$"), serveText},
 	{regexp.MustCompile("/objects/info/http-alternates$"), serveText},
@@ -67,6 +69,8 @@ func serveRefs(repo *Repo, w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/x-" + service + "-advertisement")
+	writePacket(w, []byte("# service=" + service))
+	flush(w)
 	repo.advertiseRefs(w)
 }
 
@@ -95,9 +99,18 @@ func serveIndex(repo *Repo, w http.ResponseWriter, r *http.Request) {
 	serveFile(repo, w, r)
 }
 
+// http.ServeFile won't let us set our own Content-Type
 func serveFile(repo *Repo, w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
 		// forbidden?
+		return
 	}
-	
+	name := repo.file(r.URL.Path)
+	f, err := os.Open(name, os.O_RDONLY, 0)
+	if err != nil {
+		http.NotFound(w, r)
+		return
+	}
+	defer f.Close()
+	io.Copy(w, f)
 }
