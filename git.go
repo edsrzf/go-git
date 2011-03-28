@@ -13,6 +13,7 @@ import (
 type Repo struct {
 	path string
 	packs []*pack
+	refs map[string]Id
 }
 
 // A git repository requires:

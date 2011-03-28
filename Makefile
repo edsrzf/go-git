@@ -9,5 +9,6 @@ GOFILES=\
 	git.go\
 	object.go\
 	pack.go\
+	refs.go\
 
 include $(GOROOT)/src/Make.pkg
