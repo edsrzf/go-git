@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"encoding/binary"
 	"os"
+	"path/filepath"
 	"github.com/edsrzf/go-mmap"
 )
 
@@ -21,7 +22,7 @@ type pack struct {
 }
 
 func newPack(r *Repo, base string) *pack {
-	basePath := r.path + "/objects/pack/" + base
+	basePath := filepath.Join(r.file("objects"), "pack", base)
 	return &pack{idxPath: basePath + ".idx", dataPath: basePath + ".pack"}
 }
 

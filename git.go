@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"strconv"
 )
 
@@ -54,9 +54,9 @@ func InitRepo(path string, bare bool) *Repo {
 		return r
 	}
 	os.Mkdir(path, 0666)
-	os.Mkdir(path + "/objects", 0666)
-	os.Mkdir(path + "/refs", 0666)
-	ioutil.WriteFile(path + "/HEAD", []byte("ref: refs/heads/master"), 0666)
+	os.Mkdir(r.file("/objects"), 0666)
+	os.Mkdir(r.file("refs"), 0666)
+	ioutil.WriteFile(r.file("/HEAD"), []byte("ref: refs/heads/master"), 0666)
 	return &Repo{path: path}
 }
 
@@ -65,6 +65,10 @@ func NewRepo(path string) *Repo {
 		return nil
 	}
 	return &Repo{path: path}
+}
+
+func (r *Repo) file(path string) string {
+	return filepath.Join(r.path, path)
 }
 
 func (r *Repo) GetObject(id Id) Object {
@@ -146,7 +150,7 @@ func parseIdentity(line []byte) (string, string) {
 
 func (r *Repo) loosePath(id Id) string {
 	sha1 := id.String()
-	return r.path + "/objects/" + sha1[0:2] + "/" + sha1[2:]
+	return filepath.Join(r.file("objects"), sha1[0:2], sha1[2:])
 }
 
 func (r *Repo) getLooseObject(id Id) Object {
@@ -170,7 +174,7 @@ func (r *Repo) findPacks() {
 		// TODO: it's probably legal to have 0 packs
 		return
 	}
-	packDir := r.path + "/objects/pack/"
+	packDir := filepath.Join(r.file("objects"), "pack")
 	dir, err := os.Open(packDir, os.O_RDONLY, 0)
 	if err != nil {
 		panic(err.String())
@@ -183,7 +187,7 @@ func (r *Repo) findPacks() {
 		return
 	}
 	for _, f := range files {
-		ext := path.Ext(f)
+		ext := filepath.Ext(f)
 		if ext == ".idx" {
 			base := f[:len(f)-len(ext)]
 			r.packs = append(r.packs, newPack(r, base))
