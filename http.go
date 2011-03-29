@@ -42,6 +42,7 @@ var routes = []struct {
 }
 
 func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	r.Write(os.Stdout)
 	for _, route := range routes {
 		if route.pattern.MatchString(r.RawURL) {
 			route.handler(h.Repo, w, r)
@@ -51,6 +52,7 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func uploadPack(repo *Repo, w http.ResponseWriter, r *http.Request) {
+	repo.negotiate(w, r.Body)
 }
 
 func receivePack(repo *Repo, w http.ResponseWriter, r *http.Request) {

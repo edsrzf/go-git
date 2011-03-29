@@ -8,6 +8,7 @@ package git
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -73,7 +74,8 @@ func (repo *Repo) negotiate(w io.Writer, r io.Reader) {
 		if len(packet) < 45 || !bytes.HasPrefix(packet, []byte("want ")) {
 			// error
 		}
-		wants = append(wants, IdFromString(string(packet[5:45])))
+		id := IdFromString(string(packet[5:45]))
+		wants = append(wants, id)
 		if !haveCaps {
 			haveCaps = true
 			if len(packet) < 45 || packet[45] != ' ' {
@@ -94,6 +96,15 @@ func (repo *Repo) negotiate(w io.Writer, r io.Reader) {
 		}
 		haves = append(haves, IdFromString(string(packet[5:45])))
 	}
+
+	// hack alert
+	nak(w)
+	f, err := os.Open(repo.file("objects/pack/pack-2f9aa945c499706d76fa3807faac9e8f01e48dd7.pack"), os.O_RDONLY, 0)
+	if err != nil {
+		panic(err.String())
+	}
+	io.Copy(w, f)
+	f.Close()
 }
 
 func readPacket(r io.Reader) (b []byte, err os.Error) {
@@ -120,10 +131,7 @@ func readPacket(r io.Reader) (b []byte, err os.Error) {
 }
 
 func writePacket(w io.Writer, payload []byte) {
-	l := []byte{'0', '0', '0', '0'}
-	str := strconv.Itob(len(payload) + 4, 16)
-	copy(l[4-len(str):], str)
-	w.Write(l)
+	fmt.Fprintf(w, "%04X", len(payload)+4)
 	w.Write(payload)
 }
 
@@ -137,14 +145,14 @@ func (r *Repo) want(w io.Writer, ids []Id) {
 func (r *Repo) have(w io.Writer, ids []Id) {
 }
 
-func (r *Repo) ack(w io.Writer, id Id) {
+func ack(w io.Writer, id Id) {
 	writePacket(w, []byte("ACK " + id.String() + "\n"))
 }
 
-func (r *Repo) ackMulti(w io.Writer, id Id, status string) {
+func ackMulti(w io.Writer, id Id, status string) {
 	writePacket(w, []byte("ACK " + id.String() + " " + status + "\n"))
 }
 
-func (r *Repo) nak(w io.Writer) {
+func nak(w io.Writer) {
 	writePacket(w, []byte("NAK\n"))
 }
