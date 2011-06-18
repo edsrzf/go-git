@@ -70,8 +70,8 @@ func serveRefs(repo *Repo, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/x-" + service + "-advertisement")
-	writePacket(w, []byte("# service=" + service))
+	w.Header().Set("Content-Type", "application/x-"+service+"-advertisement")
+	writePacket(w, []byte("# service="+service))
 	flush(w)
 	repo.advertiseRefs(w)
 }

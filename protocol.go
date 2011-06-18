@@ -39,7 +39,7 @@ func (r *Repo) advertiseRefs(w io.Writer) {
 		sentCaps := false
 		// HEAD has to be first
 		if head := refs["HEAD"]; head != "" {
-			writePacket(w, []byte(head.String() + " HEAD\x00\n"))
+			writePacket(w, []byte(head.String()+" HEAD\x00\n"))
 			sentCaps = true
 		}
 		for name, id := range refs {
@@ -84,7 +84,7 @@ func (repo *Repo) negotiate(w io.Writer, r io.Reader) {
 			//caps := bytes.Split(packet[46:], []byte{' '}, -1)
 		}
 	}
-	
+
 	var haves []Id
 	for {
 		packet, _ := readPacket(r)
@@ -146,11 +146,11 @@ func (r *Repo) have(w io.Writer, ids []Id) {
 }
 
 func ack(w io.Writer, id Id) {
-	writePacket(w, []byte("ACK " + id.String() + "\n"))
+	writePacket(w, []byte("ACK "+id.String()+"\n"))
 }
 
 func ackMulti(w io.Writer, id Id, status string) {
-	writePacket(w, []byte("ACK " + id.String() + " " + status + "\n"))
+	writePacket(w, []byte("ACK "+id.String()+" "+status+"\n"))
 }
 
 func nak(w io.Writer) {

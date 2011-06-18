@@ -44,7 +44,7 @@ func (b *Blob) Raw() []byte {
 }
 
 type Tree struct {
-	names []string
+	names    []string
 	children []Id
 }
 
@@ -79,7 +79,7 @@ func (t *Tree) Raw() []byte {
 
 type time struct {
 	seconds int64
-	offset int // time zone offset in minutes
+	offset  int // time zone offset in minutes
 }
 
 func (t *time) String() string {
@@ -93,22 +93,22 @@ func (t *time) String() string {
 		offset = -t.offset
 	}
 	tz := strconv.Itoa(offset)
-	for i := 0; len(tz) + i < 4; i++ {
+	for i := 0; len(tz)+i < 4; i++ {
 		pre += "0"
 	}
 	return strconv.Itoa64(t.seconds) + pre + tz
 }
 
 type Commit struct {
-	authorName string
-	authorEmail string
-	authorTime *time
-	committerName string
+	authorName     string
+	authorEmail    string
+	authorTime     *time
+	committerName  string
 	committerEmail string
-	committerTime *time
-	tree Id
-	parents []Id
-	msg string
+	committerTime  *time
+	tree           Id
+	parents        []Id
+	msg            string
 }
 
 func NewCommit(authorName, authorEmail string, authorTime *time, committerName, committerEmail string, commitTime *time, tree Id, parents []Id, msg string) *Commit {
