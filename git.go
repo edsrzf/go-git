@@ -11,9 +11,9 @@ import (
 )
 
 type Repo struct {
-	path string
+	path  string
 	packs []*pack
-	refs map[string]Id
+	refs  map[string]Id
 }
 
 // A git repository requires:
@@ -83,20 +83,20 @@ func (r *Repo) GetObject(id Id) Object {
 func parse(raw []byte) Object {
 	i := bytes.IndexByte(raw, ' ')
 	null := bytes.IndexByte(raw, '\x00')
-	sizeStr := raw[i+1:null]
+	sizeStr := raw[i+1 : null]
 	size, err := strconv.Atoi(string(sizeStr))
 	if err != nil {
 		panic("whaa?")
 	}
 	switch string(raw[:i]) {
-		case "blob":
-			return &Blob{raw[null+1:null+1+size]}
-		case "tree":
-			return parseTree(raw[null+1:null+1+size])
-		case "commit":
-			return parseCommit(raw[null+1:null+1+size])
-		default:
-			panic("What the heck?")
+	case "blob":
+		return &Blob{raw[null+1 : null+1+size]}
+	case "tree":
+		return parseTree(raw[null+1 : null+1+size])
+	case "commit":
+		return parseCommit(raw[null+1 : null+1+size])
+	default:
+		panic("What the heck?")
 	}
 	return nil
 }
@@ -106,7 +106,7 @@ func parseTree(raw []byte) *Tree {
 	for len(raw) > 0 {
 		pos := bytes.IndexByte(raw, 0)
 		name := string(raw[7:pos])
-		id := Id(string(raw[pos + 1:pos+21]))
+		id := Id(string(raw[pos+1 : pos+21]))
 		raw = raw[pos+21:]
 		t.Add(name, id)
 	}
@@ -145,7 +145,7 @@ func parseIdentity(line []byte) (string, string) {
 	pos := bytes.IndexByte(line, '<')
 	name := string(line[:pos-1])
 	addrEnd := bytes.IndexByte(line, '>')
-	addr := string(line[pos+1:addrEnd])
+	addr := string(line[pos+1 : addrEnd])
 	return name, addr
 }
 
@@ -156,12 +156,15 @@ func (r *Repo) loosePath(id Id) string {
 
 func (r *Repo) getLooseObject(id Id) Object {
 	path := r.loosePath(id)
-	f, err := os.Open(path, os.O_RDONLY, 0)
+	f, err := os.Open(path)
 	defer f.Close()
 	if err != nil {
 		return nil
 	}
-	z, _ := zlib.NewReader(f)
+	z, err := zlib.NewReader(f)
+	if err != nil {
+		panic("Error in zlib:" + err.String())
+	}
 	defer z.Close()
 	// TODO: Size it right
 	b := make([]byte, 1024)
@@ -176,7 +179,7 @@ func (r *Repo) findPacks() {
 		return
 	}
 	packDir := filepath.Join(r.file("objects"), "pack")
-	dir, err := os.Open(packDir, os.O_RDONLY, 0)
+	dir, err := os.Open(packDir)
 	if err != nil {
 		panic(err.String())
 		return
@@ -210,7 +213,7 @@ func (r *Repo) getPackedObject(id Id) Object {
 func (r *Repo) Save(obj Object) os.Error {
 	// It's easy to create a loose object. Let's do that.
 	path := r.loosePath(ObjectId(obj))
-	f, err := os.Open(path, os.O_CREATE | os.O_RDWR, 0666)
+	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}
