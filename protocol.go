@@ -99,7 +99,7 @@ func (repo *Repo) negotiate(w io.Writer, r io.Reader) {
 
 	// hack alert
 	nak(w)
-	f, err := os.Open(repo.file("objects/pack/pack-2f9aa945c499706d76fa3807faac9e8f01e48dd7.pack"), os.O_RDONLY, 0)
+	f, err := os.Open(repo.file("objects/pack/pack-2f9aa945c499706d76fa3807faac9e8f01e48dd7.pack"))
 	if err != nil {
 		panic(err.String())
 	}
@@ -121,7 +121,7 @@ func readPacket(r io.Reader) (b []byte, err os.Error) {
 	if n2 == 0 {
 		return
 	}
-	b = make([]byte, n2 - 4)
+	b = make([]byte, n2-4)
 	_, err = r.Read(b)
 	if err != nil {
 		b = nil

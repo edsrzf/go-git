@@ -108,7 +108,7 @@ func serveFile(repo *Repo, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := repo.file(r.URL.Path)
-	f, err := os.Open(name, os.O_RDONLY, 0)
+	f, err := os.Open(name)
 	if err != nil {
 		http.NotFound(w, r)
 		return

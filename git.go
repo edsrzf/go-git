@@ -156,12 +156,15 @@ func (r *Repo) loosePath(id Id) string {
 
 func (r *Repo) getLooseObject(id Id) Object {
 	path := r.loosePath(id)
-	f, err := os.Open(path, os.O_RDONLY, 0)
+	f, err := os.Open(path)
 	defer f.Close()
 	if err != nil {
 		return nil
 	}
-	z, _ := zlib.NewReader(f)
+	z, err := zlib.NewReader(f)
+	if err != nil {
+		panic("Error in zlib:" + err.String())
+	}
 	defer z.Close()
 	// TODO: Size it right
 	b := make([]byte, 1024)
@@ -176,7 +179,7 @@ func (r *Repo) findPacks() {
 		return
 	}
 	packDir := filepath.Join(r.file("objects"), "pack")
-	dir, err := os.Open(packDir, os.O_RDONLY, 0)
+	dir, err := os.Open(packDir)
 	if err != nil {
 		panic(err.String())
 		return
@@ -210,7 +213,7 @@ func (r *Repo) getPackedObject(id Id) Object {
 func (r *Repo) Save(obj Object) os.Error {
 	// It's easy to create a loose object. Let's do that.
 	path := r.loosePath(ObjectId(obj))
-	f, err := os.Open(path, os.O_CREATE | os.O_RDWR, 0666)
+	f, err := os.Create(path)
 	if err != nil {
 		return err
 	}

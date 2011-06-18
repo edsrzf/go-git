@@ -6,7 +6,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
-	"github.com/edsrzf/go-mmap"
+	"github.com/edsrzf/mmap-go"
 )
 
 var order = binary.BigEndian
@@ -33,12 +33,12 @@ func (p *pack) readIndex() {
 		return
 	}
 	var err os.Error
-	p.indexFile, err = os.Open(p.idxPath, os.O_RDONLY, 0)
+	p.indexFile, err = os.Open(p.idxPath)
 	if err != nil {
 		panic(err.String())
 		return
 	}
-	p.index, err = mmap.Map(p.indexFile, mmap.RDONLY)
+	p.index, err = mmap.Map(p.indexFile, mmap.RDONLY,0)
 	if err != nil {
 		panic("error mapping")
 		return
@@ -55,11 +55,11 @@ func (p *pack) readData() {
 		return
 	}
 	var err os.Error
-	p.dataFile, err = os.Open(p.dataPath, os.O_RDONLY, 0)
+	p.dataFile, err = os.Open(p.dataPath)
 	if err != nil {
 		return
 	}
-	p.data, err = mmap.Map(p.dataFile, mmap.RDONLY)
+	p.data, err = mmap.Map(p.dataFile, mmap.RDONLY,0)
 	if err != nil {
 		return
 	}
@@ -152,10 +152,10 @@ func (p *pack) readRaw(offset uint32) (int, []byte) {
 	objSize := uint32(objHeader & 0x0F)
 	i := uint32(0)
 	shift := uint32(4)
-	for objHeader & 0x80 != 0 {
+	for objHeader&0x80 != 0 {
 		i++
 		objHeader = p.data[offset+i]
-		objSize |= uint32(objHeader & 0x7F) << shift
+		objSize |= uint32(objHeader&0x7F) << shift
 		shift += 7
 	}
 
@@ -217,7 +217,7 @@ func applyDelta(base, patch []byte) []byte {
 			// reserved
 			// TODO: better error, don't panic
 			panic("delta opcode 0")
-		} else if op & 0x80 == 0 {
+		} else if op&0x80 == 0 {
 			// insert
 			n := uint(op)
 			copy(result[loc:], patch[i:i+n])
