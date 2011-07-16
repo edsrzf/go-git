@@ -6,6 +6,7 @@ include $(GOROOT)/src/Make.inc
 
 TARG=github.com/edsrzf/go-git
 GOFILES=\
+	fetch.go\
 	git.go\
 	http.go\
 	object.go\

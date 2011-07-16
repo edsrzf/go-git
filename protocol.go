@@ -7,6 +7,7 @@ package git
 //	http://www.kernel.org/pub/software/scm/git/docs/technical/protocol-common.txt
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"io"
@@ -58,6 +59,53 @@ func (r *Repo) advertiseRefs(w io.Writer) {
 	flush(w)
 }
 
+// readRefs reads advertised refs from the client's perspective.
+func readRefs(r *bufio.Reader) map[string]Id {
+	refs := map[string]Id{}
+	gotCaps := false
+	for {
+		packet, _ := readPacket(r)
+		if packet == nil {
+			break
+		}
+		if len(packet) < 42 {
+			// error
+		}
+		id := IdFromBytes(packet[:40])
+		end := len(packet)
+		if !gotCaps {
+			end = bytes.IndexByte(packet, 0)
+			if end < 0 {
+				// error
+			}
+			// TODO: read capabilities
+			gotCaps = true
+		}
+		name := string(packet[41:end])
+		refs[name] = id
+	}
+	return refs
+}
+
+func writeWants(w io.Writer, wants, haves []Id) {
+	for i, want := range wants {
+		payload := []byte("want " + want.String())
+		if i == 0 {
+			payload = append(payload, 0)
+		}
+		payload = append(payload, '\n')
+		writePacket(w, payload)
+	}
+	flush(w)
+	for _, have := range haves {
+		writePacket(w, []byte("have " + have.String() + "\n"))
+	}
+	if len(haves) > 0 {
+		flush(w)
+	}
+	writePacket(w, []byte("done\n"))
+}
+
 // negotiate initiates packfile negotiation from the server's perspective.
 // The server expects some "want" lines and "have" lines from r and writes
 // out the necessary packfiles to w.
@@ -74,7 +122,7 @@ func (repo *Repo) negotiate(w io.Writer, r io.Reader) {
 		if len(packet) < 45 || !bytes.HasPrefix(packet, []byte("want ")) {
 			// error
 		}
-		id := IdFromString(string(packet[5:45]))
+		id := IdFromBytes(packet[5:45])
 		wants = append(wants, id)
 		if !haveCaps {
 			haveCaps = true
@@ -94,7 +142,7 @@ func (repo *Repo) negotiate(w io.Writer, r io.Reader) {
 		if len(packet) < 45 || !bytes.HasPrefix(packet, []byte("have ")) {
 			// error
 		}
-		haves = append(haves, IdFromString(string(packet[5:45])))
+		haves = append(haves, IdFromBytes(packet[5:45]))
 	}
 
 	// hack alert
@@ -119,14 +167,15 @@ func readPacket(r io.Reader) (b []byte, err os.Error) {
 	}
 	// flush
 	if n2 == 0 {
+		println(string(b))
 		return
 	}
 	b = make([]byte, n2-4)
 	_, err = r.Read(b)
 	if err != nil {
 		b = nil
-		return
 	}
+	println(string(b))
 	return
 }
 

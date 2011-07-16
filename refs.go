@@ -43,12 +43,12 @@ func (r *Repo) packedRefs() {
 	if err != nil {
 		return
 	}
-	lines := bytes.Split(content, []byte{'\n'}, -1)
+	lines := bytes.Split(content, []byte{'\n'})
 	for _, line := range lines {
 		if len(line) == 0 || line[0] == '#' {
 			continue
 		}
-		parts := bytes.Split(line, []byte{' '}, 2)
+		parts := bytes.SplitN(line, []byte{' '}, 2)
 		if len(parts[0]) != 40 {
 			continue
 		}

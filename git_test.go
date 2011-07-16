@@ -25,6 +25,10 @@ func TestVarint(t *testing.T) {
 	}
 }
 
+func TestClone(t *testing.T) {
+	Clone("http://github.com/edsrzf/go-git.git", "clonedrepo")
+}
+
 // It's probably a bad idea to write tests this way, but it's just so convenient.
 func TestObjects(t *testing.T) {
 	r := NewRepo(".git")

@@ -54,11 +54,12 @@ func InitRepo(path string, bare bool) *Repo {
 	if r != nil {
 		return r
 	}
+	r = &Repo{path: path}
 	os.Mkdir(path, 0666)
 	os.Mkdir(r.file("/objects"), 0666)
 	os.Mkdir(r.file("refs"), 0666)
 	ioutil.WriteFile(r.file("/HEAD"), []byte("ref: refs/heads/master"), 0666)
-	return &Repo{path: path}
+	return r
 }
 
 func NewRepo(path string) *Repo {
@@ -118,7 +119,7 @@ func parseCommit(raw []byte) *Commit {
 	if msgPos < 0 {
 		panic("no message?")
 	}
-	lines := bytes.Split(raw[:msgPos], []byte{'\n'}, -1)
+	lines := bytes.Split(raw[:msgPos], []byte{'\n'})
 	c := &Commit{}
 	for _, line := range lines {
 		pos := bytes.IndexByte(line, ' ')

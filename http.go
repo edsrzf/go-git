@@ -3,6 +3,7 @@ package git
 // This file implements HTTP (both "smart" and "dumb") transport for the
 // Git protocol.
 import (
+	"fmt"
 	"http"
 	"io"
 	"os"
@@ -52,7 +53,9 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func uploadPack(repo *Repo, w http.ResponseWriter, r *http.Request) {
-	repo.negotiate(w, r.Body)
+	fmt.Println("copying request")
+	io.Copy(os.Stdout, r.Body)
+	//repo.negotiate(w, r.Body)
 }
 
 func receivePack(repo *Repo, w http.ResponseWriter, r *http.Request) {
