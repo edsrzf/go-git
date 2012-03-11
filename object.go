@@ -14,7 +14,7 @@ type Object interface {
 func ObjectId(obj Object) Id {
 	h := sha1.New()
 	h.Write(ObjectFull(obj))
-	return IdFromBytes(h.Sum())
+	return IdFromBytes(h.Sum(nil))
 }
 
 func ObjectFull(obj Object) []byte {
@@ -96,7 +96,7 @@ func (t *time) String() string {
 	for i := 0; len(tz)+i < 4; i++ {
 		pre += "0"
 	}
-	return strconv.Itoa64(t.seconds) + pre + tz
+	return strconv.FormatInt(t.seconds, 10) + pre + tz
 }
 
 type Commit struct {

@@ -3,8 +3,8 @@ package git
 import (
 	"bufio"
 	"bytes"
-	"http"
 	"io"
+	"net/http"
 	"os"
 )
 
@@ -15,7 +15,7 @@ func Clone(url, path string) *Repo {
 	resp, err := http.Get(refsUrl)
 	//resp, _, err := http.Get(url + "/info/refs?service=git-receive-pack")
 	if err != nil {
-		panic(err.String())
+		panic(err.Error())
 		return nil
 	}
 	buf := bufio.NewReader(resp.Body)
@@ -30,7 +30,7 @@ func Clone(url, path string) *Repo {
 		wants = append(wants, id)
 	}
 	writeWants(b, wants, nil)
-	resp, err = http.Post(url + "/git-upload-pack", "application/x-git-upload-pack-request", b)
+	resp, err = http.Post(url+"/git-upload-pack", "application/x-git-upload-pack-request", b)
 	io.Copy(os.Stdout, resp.Body)
 	return r
 }

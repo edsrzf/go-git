@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"compress/zlib"
 	"encoding/binary"
+	"github.com/edsrzf/mmap-go"
 	"os"
 	"path/filepath"
-	"github.com/edsrzf/mmap-go"
 )
 
 var order = binary.BigEndian
@@ -32,10 +32,10 @@ func (p *pack) readIndex() {
 	if p.indexFile != nil {
 		return
 	}
-	var err os.Error
+	var err error
 	p.indexFile, err = os.Open(p.idxPath)
 	if err != nil {
-		panic(err.String())
+		panic(err.Error())
 		return
 	}
 	p.index, err = mmap.Map(p.indexFile, mmap.RDONLY, 0)
@@ -54,7 +54,7 @@ func (p *pack) readData() {
 	if p.dataFile != nil {
 		return
 	}
-	var err os.Error
+	var err error
 	p.dataFile, err = os.Open(p.dataPath)
 	if err != nil {
 		return
@@ -184,7 +184,7 @@ func (p *pack) readRaw(offset uint32) (int, []byte) {
 	buf := bytes.NewBuffer(p.data[offset+i+1:])
 	r, err := zlib.NewReader(buf)
 	if err != nil {
-		panic(err.String())
+		panic(err.Error())
 	}
 	r.Read(obj)
 	r.Close()

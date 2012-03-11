@@ -36,11 +36,11 @@ func IsRepo(dir string) bool {
 		}
 	}
 	stat, err := os.Lstat(dir + "/objects")
-	if err != nil || !stat.IsDirectory() {
+	if err != nil || !stat.IsDir() {
 		return false
 	}
 	stat, err = os.Lstat(dir + "/refs")
-	if err != nil || !stat.IsDirectory() {
+	if err != nil || !stat.IsDir() {
 		return false
 	}
 	return true
@@ -158,13 +158,13 @@ func (r *Repo) loosePath(id Id) string {
 func (r *Repo) getLooseObject(id Id) Object {
 	path := r.loosePath(id)
 	f, err := os.Open(path)
-	defer f.Close()
 	if err != nil {
 		return nil
 	}
+	defer f.Close()
 	z, err := zlib.NewReader(f)
 	if err != nil {
-		panic("Error in zlib:" + err.String())
+		panic("Error in zlib:" + err.Error())
 	}
 	defer z.Close()
 	// TODO: Size it right
@@ -182,13 +182,13 @@ func (r *Repo) findPacks() {
 	packDir := filepath.Join(r.file("objects"), "pack")
 	dir, err := os.Open(packDir)
 	if err != nil {
-		panic(err.String())
+		panic(err.Error())
 		return
 	}
 	defer dir.Close()
 	files, err := dir.Readdirnames(-1)
 	if err != nil {
-		panic(err.String())
+		panic(err.Error())
 		return
 	}
 	for _, f := range files {
@@ -211,7 +211,7 @@ func (r *Repo) getPackedObject(id Id) Object {
 }
 
 // Save adds an Object to the repository.
-func (r *Repo) Save(obj Object) os.Error {
+func (r *Repo) Save(obj Object) error {
 	// It's easy to create a loose object. Let's do that.
 	path := r.loosePath(ObjectId(obj))
 	f, err := os.Create(path)
@@ -220,10 +220,7 @@ func (r *Repo) Save(obj Object) os.Error {
 	}
 	defer f.Close()
 	content := obj.Raw()
-	wr, err := zlib.NewWriter(f)
-	if err != nil {
-		return err
-	}
+	wr := zlib.NewWriter(f)
 	defer wr.Close()
 	wr.Write(content)
 	return nil

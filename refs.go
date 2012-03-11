@@ -13,7 +13,7 @@ func (r *Repo) resolveRef(name string) (id Id) {
 	}
 	content, err := ioutil.ReadFile(r.file(name))
 	if err != nil {
-		panic(err.String())
+		panic(err.Error())
 		return ""
 	}
 	content = bytes.TrimSpace(content)
@@ -61,23 +61,19 @@ func (r *Repo) packedRefs() {
 
 // Refs returns a map of ref names to Ids.
 func (r *Repo) Refs() map[string]Id {
-	v := &refVisitor{r: r}
 	r.packedRefs()
 	if head := r.Head(); head != "" {
 		r.refs["HEAD"] = head
 	}
-	filepath.Walk(r.file("refs"), v, nil)
+	filepath.Walk(r.file("refs"), refVisitor(r))
 	return r.refs
 }
 
-type refVisitor struct {
-	r *Repo
-}
-
-func (v *refVisitor) VisitDir(path string, f *os.FileInfo) bool {
-	return true
-}
-
-func (v *refVisitor) VisitFile(path string, f *os.FileInfo) {
-	v.r.resolveRef(path[5:])
+func refVisitor(r *Repo) filepath.WalkFunc {
+	return func(path string, f os.FileInfo, err error) error {
+		if !f.IsDir() {
+			r.resolveRef(path[5:])
+		}
+		return nil
+	}
 }

@@ -4,8 +4,8 @@ package git
 // Git protocol.
 import (
 	"fmt"
-	"http"
 	"io"
+	"net/http"
 	"os"
 	"regexp"
 	"strings"
@@ -45,7 +45,7 @@ var routes = []struct {
 func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Write(os.Stdout)
 	for _, route := range routes {
-		if route.pattern.MatchString(r.RawURL) {
+		if route.pattern.MatchString(r.URL.Path) {
 			route.handler(h.Repo, w, r)
 			break
 		}

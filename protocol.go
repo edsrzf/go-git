@@ -98,7 +98,7 @@ func writeWants(w io.Writer, wants, haves []Id) {
 	}
 	flush(w)
 	for _, have := range haves {
-		writePacket(w, []byte("have " + have.String() + "\n"))
+		writePacket(w, []byte("have "+have.String()+"\n"))
 	}
 	if len(haves) > 0 {
 		flush(w)
@@ -149,19 +149,19 @@ func (repo *Repo) negotiate(w io.Writer, r io.Reader) {
 	nak(w)
 	f, err := os.Open(repo.file("objects/pack/pack-2f9aa945c499706d76fa3807faac9e8f01e48dd7.pack"))
 	if err != nil {
-		panic(err.String())
+		panic(err.Error())
 	}
 	io.Copy(w, f)
 	f.Close()
 }
 
-func readPacket(r io.Reader) (b []byte, err os.Error) {
+func readPacket(r io.Reader) (b []byte, err error) {
 	n := make([]byte, 4)
 	_, err = r.Read(n)
 	if err != nil {
 		return
 	}
-	n2, err := strconv.Btoui64(string(n), 16)
+	n2, err := strconv.ParseUint(string(n), 16, 64)
 	if err != nil {
 		return
 	}
